@@ -686,9 +686,10 @@ class WC_Stripe_Intent_Controller {
 	 * @return void
 	 */
 	public function update_order_status_ajax() {
-		$order_helper = WC_Stripe_Order_Helper::get_instance();
-		$order        = false;
-		$order_id     = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : false;
+		$order_helper      = WC_Stripe_Order_Helper::get_instance();
+		$order             = false;
+		$order_id          = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : false;
+		$is_already_locked = false;
 
 		try {
 			$is_nonce_valid = check_ajax_referer( 'wc_stripe_update_order_status_nonce', false, false );
