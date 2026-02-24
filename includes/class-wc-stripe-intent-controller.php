@@ -698,7 +698,7 @@ class WC_Stripe_Intent_Controller {
 			}
 
 			$order    = wc_get_order( $order_id );
-			if ( ! $order ) {
+			if ( ! $order instanceof WC_Order ) {
 				throw new WC_Stripe_Exception( 'order_not_found', __( "We're not able to process this payment. Please try again later.", 'woocommerce-gateway-stripe' ) );
 			}
 
@@ -730,7 +730,6 @@ class WC_Stripe_Intent_Controller {
 					],
 					200
 				);
-				return;
 			}
 
 			$gateway->process_order_for_confirmed_intent( $order, $intent_id_received, $save_payment_method );
@@ -767,7 +766,7 @@ class WC_Stripe_Intent_Controller {
 			);
 		} finally {
 			// Unlock if order exists and the lock was not acquired by another code path.
-			if ( $order && ! $is_already_locked ) {
+			if ( $order instanceof WC_Order && ! $is_already_locked ) {
 				$order_helper->unlock_order_payment( $order );
 			}
 		}
