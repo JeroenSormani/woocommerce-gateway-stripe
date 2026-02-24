@@ -715,6 +715,23 @@ class WC_Stripe_Intent_Controller {
 			$save_payment_method = isset( $_POST['payment_method_id'] ) && ! empty( wc_clean( wp_unslash( $_POST['payment_method_id'] ) ) );
 
 			$gateway = $this->get_upe_gateway();
+
+			$is_already_locked = $order_helper->lock_order_payment( $order );
+			if ( $is_already_locked ) {
+				WC_Stripe_Logger::debug(
+					'Skipped updating order status in ajax request because order is already being processed.',
+					[ 'order_id' => $order_id ]
+				);
+
+				wp_send_json_success(
+					[
+						'return_url' => $gateway->get_return_url( $order ),
+					],
+					200
+				);
+				return;
+			}
+
 			$gateway->process_order_for_confirmed_intent( $order, $intent_id_received, $save_payment_method );
 			wp_send_json_success(
 				[
@@ -747,6 +764,11 @@ class WC_Stripe_Intent_Controller {
 					],
 				]
 			);
+		} finally {
+			// Unlock if order exists and the lock was not acquired by another code path.
+			if ( $order && ! $is_already_locked ) {
+				$order_helper->unlock_order_payment( $order );
+			}
 		}
 	}
 
