@@ -733,6 +733,12 @@ class WC_Stripe_Intent_Controller {
 			}
 
 			$gateway->process_order_for_confirmed_intent( $order, $intent_id_received, $save_payment_method );
+
+			// Unlock if the lock was not acquired by another code path.
+			if ( ! $is_already_locked ) {
+				$order_helper->unlock_order_payment( $order );
+			}
+
 			wp_send_json_success(
 				[
 					'return_url' => $gateway->get_return_url( $order ),
@@ -754,6 +760,11 @@ class WC_Stripe_Intent_Controller {
 				// Remove the awaiting confirmation order meta, don't save the order since it'll be saved in the next `update_status()` call.
 				$order_helper->remove_payment_awaiting_action( $order, false );
 				$order->update_status( OrderStatus::FAILED );
+
+				// Unlock if the lock was not acquired by another code path.
+				if ( ! $is_already_locked ) {
+					$order_helper->unlock_order_payment( $order );
+				}
 			}
 
 			// Send back error so it can be displayed to the customer.
@@ -764,11 +775,6 @@ class WC_Stripe_Intent_Controller {
 					],
 				]
 			);
-		} finally {
-			// Unlock if order exists and the lock was not acquired by another code path.
-			if ( $order instanceof WC_Order && ! $is_already_locked ) {
-				$order_helper->unlock_order_payment( $order );
-			}
 		}
 	}
 
