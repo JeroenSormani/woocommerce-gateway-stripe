@@ -702,21 +702,6 @@ class WC_Stripe_Intent_Controller {
 				throw new WC_Stripe_Exception( 'order_not_found', __( "We're not able to process this payment. Please try again later.", 'woocommerce-gateway-stripe' ) );
 			}
 
-			$intent_id          = $order_helper->get_intent_id_from_order( $order );
-			$intent_id_received = isset( $_POST['intent_id'] ) ? wc_clean( wp_unslash( $_POST['intent_id'] ) ) : null;
-			if ( empty( $intent_id_received ) || $intent_id_received !== $intent_id ) {
-				$note = sprintf(
-					/* translators: %1: transaction ID of the payment or a translated string indicating an unknown ID. */
-					__( 'A payment with ID %s was used in an attempt to pay for this order. This payment intent ID does not match any payments for this order, so it was ignored and the order was not updated.', 'woocommerce-gateway-stripe' ),
-					$intent_id_received
-				);
-				$order->add_order_note( $note );
-				throw new WC_Stripe_Exception( 'invalid_intent_id', __( "We're not able to process this payment. Please try again later.", 'woocommerce-gateway-stripe' ) );
-			}
-			$save_payment_method = isset( $_POST['payment_method_id'] ) && ! empty( wc_clean( wp_unslash( $_POST['payment_method_id'] ) ) );
-
-			$gateway = $this->get_upe_gateway();
-
 			$is_already_locked = $order_helper->lock_order_payment( $order );
 			if ( $is_already_locked ) {
 				WC_Stripe_Logger::debug(
@@ -734,7 +719,7 @@ class WC_Stripe_Intent_Controller {
 			}
 
 			// If another process (webhook, process_payment) already moved the order to a terminal state, return the appropriate response without re-processing.
-			if ( $order->has_status( [ OrderStatus::PROCESSING, OrderStatus::COMPLETED, OrderStatus::ON_HOLD ] ) ) {
+			if ( $order->has_status( [ OrderStatus::PROCESSING, OrderStatus::COMPLETED ] ) ) {
 				$order_helper->unlock_order_payment( $order );
 				wp_send_json_success(
 					[
@@ -744,6 +729,21 @@ class WC_Stripe_Intent_Controller {
 				);
 				return;
 			}
+
+			$intent_id          = $order_helper->get_intent_id_from_order( $order );
+			$intent_id_received = isset( $_POST['intent_id'] ) ? wc_clean( wp_unslash( $_POST['intent_id'] ) ) : null;
+			if ( empty( $intent_id_received ) || $intent_id_received !== $intent_id ) {
+				$note = sprintf(
+					/* translators: %1: transaction ID of the payment or a translated string indicating an unknown ID. */
+					__( 'A payment with ID %s was used in an attempt to pay for this order. This payment intent ID does not match any payments for this order, so it was ignored and the order was not updated.', 'woocommerce-gateway-stripe' ),
+					$intent_id_received
+				);
+				$order->add_order_note( $note );
+				throw new WC_Stripe_Exception( 'invalid_intent_id', __( "We're not able to process this payment. Please try again later.", 'woocommerce-gateway-stripe' ) );
+			}
+			$save_payment_method = isset( $_POST['payment_method_id'] ) && ! empty( wc_clean( wp_unslash( $_POST['payment_method_id'] ) ) );
+
+			$gateway = $this->get_upe_gateway();
 
 			$gateway->process_order_for_confirmed_intent( $order, $intent_id_received, $save_payment_method );
 
