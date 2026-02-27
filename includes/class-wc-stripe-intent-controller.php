@@ -718,6 +718,8 @@ class WC_Stripe_Intent_Controller {
 				return;
 			}
 
+			$gateway = $this->get_upe_gateway();
+
 			// If another process (webhook, process_payment) already moved the order to a terminal state, return the appropriate response without re-processing.
 			if ( $order->has_status( [ OrderStatus::PROCESSING, OrderStatus::COMPLETED ] ) ) {
 				$order_helper->unlock_order_payment( $order );
@@ -742,8 +744,6 @@ class WC_Stripe_Intent_Controller {
 				throw new WC_Stripe_Exception( 'invalid_intent_id', __( "We're not able to process this payment. Please try again later.", 'woocommerce-gateway-stripe' ) );
 			}
 			$save_payment_method = isset( $_POST['payment_method_id'] ) && ! empty( wc_clean( wp_unslash( $_POST['payment_method_id'] ) ) );
-
-			$gateway = $this->get_upe_gateway();
 
 			$gateway->process_order_for_confirmed_intent( $order, $intent_id_received, $save_payment_method );
 
