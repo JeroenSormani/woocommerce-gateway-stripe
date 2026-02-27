@@ -53,7 +53,7 @@ class WC_Stripe_Intent_Controller_Test extends WP_UnitTestCase {
 		$this->order           = WC_Helper_Order::create_order();
 		$this->gateway         = $this->getMockBuilder( 'WC_Stripe_UPE_Payment_Gateway' )
 			->setConstructorArgs( [ $mock_account ] )
-			->setMethods( [ 'maybe_process_upe_redirect', 'has_subscription' ] )
+			->setMethods( [ 'maybe_process_upe_redirect', 'has_subscription', 'process_order_for_confirmed_intent' ] )
 			->getMock();
 		$this->mock_controller = $this->getMockBuilder( 'WC_Stripe_Intent_Controller' )
 			->disableOriginalConstructor()
@@ -64,6 +64,9 @@ class WC_Stripe_Intent_Controller_Test extends WP_UnitTestCase {
 			->willReturn( $this->gateway );
 		$this->gateway->expects( $this->any() )
 			->method( 'has_subscription' )
+			->willReturn( true );
+		$this->gateway->expects( $this->any() )
+			->method( 'process_order_for_confirmed_intent' )
 			->willReturn( true );
 	}
 
@@ -546,6 +549,45 @@ class WC_Stripe_Intent_Controller_Test extends WP_UnitTestCase {
 		$result = $this->mock_controller->create_and_confirm_setup_intent( $payment_information );
 
 		$this->assertEquals( 'succeeded', $result->status );
+	}
+
+	/**
+	 * Test that a locked order returns a 'processing' status for client polling
+	 * instead of an immediate redirect URL.
+	 */
+	public function test_update_order_status_ajax_returns_processing_when_order_is_locked() {
+		Ajax_Test_Helper::init_hooks();
+
+		wp_set_current_user( 1 );
+
+		// Create order in test so wc_get_order() finds it.
+		$order     = WC_Helper_Order::create_order();
+		$order_id  = $order->get_id();
+		$intent_id = 'pi_test_mock_intent';
+
+		$order->update_meta_data( '_stripe_intent_id', $intent_id );
+		$order->update_meta_data( '_stripe_lock_payment', time() + 5 * MINUTE_IN_SECONDS );
+		$order->save();
+
+		$_POST['order_id']  = $order_id;
+		$_POST['intent_id'] = $intent_id;
+
+		$nonce                   = wp_create_nonce( 'wc_stripe_update_order_status_nonce' );
+		$_POST['_ajax_nonce']    = $nonce;
+		$_REQUEST['_ajax_nonce'] = $nonce;
+
+		ob_start();
+		$this->mock_controller->update_order_status_ajax();
+		$output = ob_get_clean();
+
+		$response = json_decode( $output, true );
+
+		$this->assertNotNull( $response, 'Controller output should be valid JSON. Output: ' . $output );
+		$this->assertTrue( $response['success'] );
+		$this->assertEquals( 'processing', $response['data']['status'] );
+		$this->assertArrayNotHasKey( 'return_url', $response['data'] );
+
+		Ajax_Test_Helper::remove_hooks();
 	}
 
 	/**
