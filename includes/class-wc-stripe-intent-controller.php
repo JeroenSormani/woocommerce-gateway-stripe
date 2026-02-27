@@ -697,7 +697,7 @@ class WC_Stripe_Intent_Controller {
 				throw new WC_Stripe_Exception( 'missing-nonce', __( 'CSRF verification failed.', 'woocommerce-gateway-stripe' ) );
 			}
 
-			$order    = wc_get_order( $order_id );
+			$order = wc_get_order( $order_id );
 			if ( ! $order instanceof WC_Order ) {
 				throw new WC_Stripe_Exception( 'order_not_found', __( "We're not able to process this payment. Please try again later.", 'woocommerce-gateway-stripe' ) );
 			}
@@ -735,9 +735,7 @@ class WC_Stripe_Intent_Controller {
 			$gateway->process_order_for_confirmed_intent( $order, $intent_id_received, $save_payment_method );
 
 			// Unlock if the lock was not acquired by another code path.
-			if ( ! $is_already_locked ) {
-				$order_helper->unlock_order_payment( $order );
-			}
+			$order_helper->unlock_order_payment( $order );
 
 			wp_send_json_success(
 				[
@@ -756,7 +754,7 @@ class WC_Stripe_Intent_Controller {
 			);
 
 			/* translators: error message */
-			if ( $order ) {
+			if ( $order instanceof WC_Order ) {
 				// Remove the awaiting confirmation order meta, don't save the order since it'll be saved in the next `update_status()` call.
 				$order_helper->remove_payment_awaiting_action( $order, false );
 				$order->update_status( OrderStatus::FAILED );
