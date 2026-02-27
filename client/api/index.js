@@ -391,7 +391,12 @@ export default class WCStripeAPI {
 						}
 						if ( response.data.status === 'processing' ) {
 							if ( retryCount >= maxRetries ) {
-								throw new Error( 'Max retries reached' );
+								throw new Error(
+									__(
+										'Your order is still being processed. Please check your email for confirmation or view your order status in My account → Orders.',
+										'woocommerce-gateway-stripe'
+									)
+								);
 							}
 							const retryAfter = 5000; // 5 seconds
 							const retryCall = new Promise( ( resolve ) =>
