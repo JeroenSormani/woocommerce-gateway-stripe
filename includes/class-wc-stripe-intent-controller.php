@@ -733,6 +733,18 @@ class WC_Stripe_Intent_Controller {
 				return;
 			}
 
+			// If another process (webhook, process_payment) already moved the order to a terminal state, return the appropriate response without re-processing.
+			if ( $order->has_status( [ OrderStatus::PROCESSING, OrderStatus::COMPLETED, OrderStatus::ON_HOLD ] ) ) {
+				$order_helper->unlock_order_payment( $order );
+				wp_send_json_success(
+					[
+						'return_url' => $gateway->get_return_url( $order ),
+					],
+					200
+				);
+				return;
+			}
+
 			$gateway->process_order_for_confirmed_intent( $order, $intent_id_received, $save_payment_method );
 
 			// Unlock if the lock was not acquired by another code path.
