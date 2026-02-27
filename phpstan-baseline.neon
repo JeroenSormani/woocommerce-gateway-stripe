@@ -2701,6 +2701,12 @@ parameters:
 			path: includes/class-wc-stripe-intent-controller.php
 
 		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 2
+			path: includes/class-wc-stripe-intent-controller.php
+
+		-
 			message: '#^Variable \$customer in empty\(\) always exists and is not falsy\.$#'
 			identifier: empty.variable
 			count: 1
