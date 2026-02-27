@@ -720,16 +720,17 @@ class WC_Stripe_Intent_Controller {
 			$is_already_locked = $order_helper->lock_order_payment( $order );
 			if ( $is_already_locked ) {
 				WC_Stripe_Logger::debug(
-					'Skipped updating order status in ajax request because order is already being processed.',
+					'Concurrent lock detected in update_order_status_ajax: order is already being processed by another request. Returning processing status for client retry.',
 					[ 'order_id' => $order_id ]
 				);
 
 				wp_send_json_success(
 					[
-						'return_url' => $gateway->get_return_url( $order ),
+						'status' => 'processing',
 					],
 					200
 				);
+				return;
 			}
 
 			$gateway->process_order_for_confirmed_intent( $order, $intent_id_received, $save_payment_method );
