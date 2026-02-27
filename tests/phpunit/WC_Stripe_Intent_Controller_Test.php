@@ -6,6 +6,7 @@ use WC_Order;
 use WC_Stripe_Currency_Code;
 use WC_Stripe_Exception;
 use WC_Stripe_Intent_Controller;
+use WC_Stripe_Order_Helper;
 use WC_Stripe_Payment_Methods;
 use WC_Stripe_UPE_Payment_Gateway;
 use WC_Subscription;
@@ -13,6 +14,7 @@ use WC_Subscriptions_Switcher;
 use WC_Subscriptions_Helpers;
 use WooCommerce\Stripe\Tests\Helpers\Ajax_Test_Helper;
 use WooCommerce\Stripe\Tests\Helpers\WC_Helper_Order;
+use Automattic\WooCommerce\Enums\OrderStatus;
 use WP_UnitTestCase;
 
 /**
@@ -560,19 +562,25 @@ class WC_Stripe_Intent_Controller_Test extends WP_UnitTestCase {
 
 		wp_set_current_user( 1 );
 
-		// Create order in test so wc_get_order() finds it.
 		$order     = WC_Helper_Order::create_order();
 		$order_id  = $order->get_id();
 		$intent_id = 'pi_test_mock_intent';
 
-		$order->update_meta_data( '_stripe_intent_id', $intent_id );
-		$order->update_meta_data( '_stripe_lock_payment', time() + 5 * MINUTE_IN_SECONDS );
-		$order->save();
+		// Mock the order helper so the controller always sees the order as locked, regardless of test order or DB state.
+		$mock_order_helper = $this->getMockBuilder( WC_Stripe_Order_Helper::class )
+			->disableOriginalConstructor()
+			->onlyMethods( [ 'lock_order_payment' ] )
+			->getMock();
+		$mock_order_helper->expects( $this->once() )
+			->method( 'lock_order_payment' )
+			->willReturn( true );
 
-		$_POST['order_id']  = $order_id;
-		$_POST['intent_id'] = $intent_id;
+		$original_helper = WC_Stripe_Order_Helper::get_instance();
+		WC_Stripe_Order_Helper::set_instance( $mock_order_helper );
 
 		$nonce                   = wp_create_nonce( 'wc_stripe_update_order_status_nonce' );
+		$_POST['order_id']       = $order_id;
+		$_POST['intent_id']      = $intent_id;
 		$_POST['_ajax_nonce']    = $nonce;
 		$_REQUEST['_ajax_nonce'] = $nonce;
 
@@ -582,12 +590,15 @@ class WC_Stripe_Intent_Controller_Test extends WP_UnitTestCase {
 
 		$response = json_decode( $output, true );
 
+		// Clean up
+		$order->delete();
+		WC_Stripe_Order_Helper::set_instance( $original_helper );
+		Ajax_Test_Helper::remove_hooks();
+
 		$this->assertNotNull( $response, 'Controller output should be valid JSON. Output: ' . $output );
 		$this->assertTrue( $response['success'] );
 		$this->assertEquals( 'processing', $response['data']['status'] );
 		$this->assertArrayNotHasKey( 'return_url', $response['data'] );
-
-		Ajax_Test_Helper::remove_hooks();
 	}
 
 	/**
