@@ -373,19 +373,44 @@ export default class WCStripeAPI {
 					_ajax_nonce: nonce,
 				} );
 
-				return [ ajaxCall, result.error ];
+				return [ ajaxCall, result.error, intentId ];
 			} )
-			.then( ( [ verificationCall, originalError ] ) => {
+			.then( ( [ verificationCall, originalError, intentId ] ) => {
 				if ( originalError ) {
 					throw originalError;
 				}
 
-				return verificationCall.then( ( response ) => {
-					if ( ! response.success ) {
-						throw response.data.error;
-					}
-					return response.data.return_url;
-				} );
+				const retryRequest = (
+					responsePromise,
+					retryCount = 0,
+					maxRetries = 5
+				) =>
+					responsePromise.then( ( response ) => {
+						if ( ! response.success ) {
+							throw response.data.error;
+						}
+						if ( response.data.status === 'processing' ) {
+							if ( retryCount >= maxRetries ) {
+								throw new Error( 'Max retries reached' );
+							}
+							const retryAfter = 5000; // 5 seconds
+							const retryCall = new Promise( ( resolve ) =>
+								setTimeout( resolve, retryAfter )
+							).then( () =>
+								this.request( this.getAjaxUrl( ajaxAction ), {
+									order_id: orderId,
+									intent_id: intentId,
+									payment_method_id:
+										paymentMethodToSave || null,
+									_ajax_nonce: nonce,
+								} )
+							);
+							return retryRequest( retryCall, retryCount + 1 );
+						}
+						return response.data.return_url;
+					} );
+
+				return retryRequest( verificationCall );
 			} );
 
 		return {
