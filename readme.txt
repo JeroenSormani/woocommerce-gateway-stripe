@@ -182,6 +182,7 @@ If you get stuck, you can ask for help in the [Plugin Forum](https://wordpress.o
 * Fix - Hide all payment methods on Add Payment Method page when saved payment methods are disabled
 * Fix - Add order payment lock in update_order_status_ajax() to prevent race conditions with the redirect path
 * Fix - Fix currency formatting issue with ISK for express checkouts
+* Dev - Extract shared banner styled components and dismissNotice utility to eliminate frontend duplication
 * Tweak - Add missing JSDoc comments to client-side utility, API, and payment-flow functions
 
 [See changelog for full details across versions](https://raw.githubusercontent.com/woocommerce/woocommerce-gateway-stripe/trunk/changelog.txt).
