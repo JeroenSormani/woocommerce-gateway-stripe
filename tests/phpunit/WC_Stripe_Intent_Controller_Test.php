@@ -688,8 +688,6 @@ class WC_Stripe_Intent_Controller_Test extends WP_UnitTestCase {
 
 		$response = json_decode( $output, true );
 
-		echo wp_json_encode( $response );
-
 		// Clean up
 		$order->delete();
 		WC_Stripe_Order_Helper::set_instance( $original_helper );
@@ -698,6 +696,62 @@ class WC_Stripe_Intent_Controller_Test extends WP_UnitTestCase {
 		$this->assertNotNull( $response, 'Controller output should be valid JSON. Output: ' . $output );
 		$this->assertTrue( $response['success'] );
 		$this->assertArrayHasKey( 'return_url', $response['data'] );
+	}
+
+	/**
+	 * Test that when process_order_for_confirmed_intent throws, the order lock is released and a JSON error is returned.
+	 */
+	public function test_update_order_status_ajax_unlocks_and_returns_error_when_process_order_throws() {
+		Ajax_Test_Helper::init_hooks();
+
+		wp_set_current_user( 1 );
+
+		$order     = WC_Helper_Order::create_order();
+		$order_id  = $order->get_id();
+		$intent_id = 'pi_test_mock_intent';
+
+		$order->set_status( OrderStatus::PENDING );
+		$order->save();
+
+		$mock_order_helper = $this->getMockBuilder( WC_Stripe_Order_Helper::class )
+			->disableOriginalConstructor()
+			->onlyMethods( [ 'lock_order_payment', 'unlock_order_payment', 'get_intent_id_from_order' ] )
+			->getMock();
+		$mock_order_helper->expects( $this->once() )
+			->method( 'lock_order_payment' )
+			->willReturn( false );
+		$mock_order_helper->expects( $this->once() )
+			->method( 'unlock_order_payment' );
+		$mock_order_helper->expects( $this->once() )
+			->method( 'get_intent_id_from_order' )
+			->willReturn( $intent_id );
+
+		$this->gateway->expects( $this->once() )
+			->method( 'process_order_for_confirmed_intent' )
+			->willThrowException( new \WC_Stripe_Exception( 'Processing failed' ) );
+
+		$original_helper = WC_Stripe_Order_Helper::get_instance();
+		WC_Stripe_Order_Helper::set_instance( $mock_order_helper );
+
+		$nonce                   = wp_create_nonce( 'wc_stripe_update_order_status_nonce' );
+		$_POST['order_id']       = $order_id;
+		$_POST['intent_id']      = $intent_id;
+		$_POST['_ajax_nonce']    = $nonce;
+		$_REQUEST['_ajax_nonce'] = $nonce;
+
+		ob_start();
+		$this->mock_controller->update_order_status_ajax();
+		$output = ob_get_clean();
+
+		$response = json_decode( $output, true );
+
+		// Clean up
+		$order->delete();
+		WC_Stripe_Order_Helper::set_instance( $original_helper );
+		Ajax_Test_Helper::remove_hooks();
+
+		$this->assertNotNull( $response, 'Controller output should be valid JSON. Output: ' . $output );
+		$this->assertFalse( $response['success'] );
 	}
 
 	/**
